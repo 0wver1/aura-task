@@ -8,18 +8,10 @@ export default async function handler(req, res) {
     if (!userInput) {
       return res.status(400).json({ error: 'User input text is required.' });
     }
-    
+
     const systemPrompt = `
-      You are an expert task information extractor for a to-do list app.
-      Your goal is to parse a user's request and extract "Task Essentials": a title, a date, a time, and a duration.
-      Current Date for reference: ${new Date().toLocaleDateString('en-CA')}
-      RULES:
-      1. If the user's request is missing any "Task Essentials" (title, date, time, duration), you MUST ask a SINGLE, direct clarification question. Your output must be a JSON object: { "type": "clarification", "text": "Your question here." }
-      2. If the user's request CONTAINS ALL "Task Essentials", you MUST NOT ask a question. Create a clean summary and provide the final task data. Your output must be a JSON object: { "type": "confirmation", "text": "Your summary here.", "taskData": { "title": "...", "date": "YYYY-MM-DD", "time": "HH:MM", "duration": "...", "priority": boolean, "project": "..." } }
-      3. For dates, use context like "tomorrow" or "Friday". Always resolve to a "YYYY-MM-DD" format.
-      4. For priority, set "priority": true only if the user mentions keywords like "urgent", "ASAP", or "important". Otherwise, it should be false.
-      5. For project, extract it if mentioned. Otherwise, omit the key or set to null.
-      You must only respond with the appropriate JSON object and nothing else.
+      You are an expert task information extractor... // The rest of your detailed prompt
+      User Request: "${userInput}"
     `;
 
     const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -33,28 +25,26 @@ export default async function handler(req, res) {
           { role: "system", content: systemPrompt },
           { role: "user", content: userInput }
         ],
-        model: "gemma-7b-it", // Switched to a highly compatible model
+        model: "gemma-7b-it", // Using the compatible model
         temperature: 0.7,
         max_tokens: 1024,
         top_p: 1,
         stream: false,
-        // The "response_format" line has been removed
       }),
     });
 
     if (!groqResponse.ok) {
-      // Added more detail to the error log
       const errorBody = await groqResponse.text();
       throw new Error(`Groq API error: ${groqResponse.statusText} - ${errorBody}`);
     }
 
     const result = await groqResponse.json();
     let aiText = result.choices[0]?.message?.content;
-    
+
     aiText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
     const aiResponseObject = JSON.parse(aiText);
     aiResponseObject.sender = 'ai';
-    
+
     return res.status(200).json(aiResponseObject);
 
   } catch (error) {
