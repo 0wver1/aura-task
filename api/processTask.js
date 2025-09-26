@@ -10,16 +10,8 @@ export default async function handler(req, res) {
     }
 
     const systemPrompt = `
-      You are an expert task information extractor for a to-do list app called Aura Task.
-      Your goal is to parse a user's request and extract "Task Essentials": a title, a date, a time, and a duration.
-      Current Date for reference: ${new Date().toLocaleString('en-CA')}
-      RULES:
-      1. If the user's request is missing any "Task Essentials" (title, date, time, duration), you MUST ask a SINGLE, direct clarification question. Your output must be a JSON object: { "type": "clarification", "text": "Your question here." }
-      2. If the user's request CONTAINS ALL "Task Essentials", you MUST NOT ask a question. Create a clean summary and provide the final task data. Your output must be a JSON object: { "type": "confirmation", "text": "Your summary here.", "taskData": { "title": "...", "date": "YYYY-MM-DD", "time": "HH:MM", "duration": "...", "priority": boolean, "project": "..." } }
-      3. For dates, use context like "tomorrow" or "Friday". Always resolve to a "YYYY-MM-DD" format.
-      4. For priority, set "priority": true only if the user mentions keywords like "urgent", "ASAP", or "important". Otherwise, it should be false.
-      5. For project, extract it if mentioned. Otherwise, omit the key or set to null.
-      You must only respond with the appropriate JSON object and nothing else.
+      You are an expert task information extractor... // The rest of your detailed prompt
+      User Request: "${userInput}"
     `;
 
     const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -33,7 +25,7 @@ export default async function handler(req, res) {
           { role: "system", content: systemPrompt },
           { role: "user", content: userInput }
         ],
-        model: "llama3-70b-8192", // Using a current, active model
+        model: "llama-3.1-8b-instant", // ✅ Updated model name
         temperature: 0.7,
         max_tokens: 1024,
         top_p: 1,
@@ -56,8 +48,7 @@ export default async function handler(req, res) {
     try {
       aiResponseObject = JSON.parse(aiText);
     } catch {
-      // ✅ This is the corrected line
-      aiResponseObject = { text: aiText }; // Fallback if the AI response isn't perfect JSON
+      aiResponseObject = { text: aiText }; // fallback if not JSON
     }
 
     aiResponseObject.sender = 'ai';
