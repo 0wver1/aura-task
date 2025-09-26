@@ -17,16 +17,19 @@ const ChatInterface = () => {
   useEffect(scrollToBottom, [messages]);
 
   const handleCreateTask = async (taskData) => {
-    console.log("Creating task with data:", taskData); // DEBUG LOG
     setIsLoading(true);
     try {
       await addTask(taskData);
       const successMessage = { sender: 'ai', text: `Great! I've added "${taskData.title}" to your tasks.` };
-      setMessages(prev => [...prev.filter(msg => msg.type !== 'confirmation'), successMessage]);
+      
+      // A clean way to update messages: remove the old confirmation and add the new success message.
+      setMessages(prev => [...prev.filter(m => m.type !== 'confirmation'), successMessage]);
+
     } catch (error) {
+        console.error("Error adding task:", error);
         setMessages(prev => [...prev, { sender: 'ai', text: 'I had trouble saving that task. Please try again.' }]);
     } finally {
-      setPendingTask(null);
+      setPendingTask(null); // Reset pending task
       setIsLoading(false);
     }
   };
@@ -37,17 +40,18 @@ const ChatInterface = () => {
     if (!currentInput || isLoading) return;
 
     const newUserMessage = { sender: 'user', text: currentInput };
-    setMessages(prev => [...prev, newUserMessage]);
+    
+    // Immediately update the UI with the user's message
+    const currentMessages = [...messages, newUserMessage];
+    setMessages(currentMessages);
     setUserInput('');
     setIsLoading(true);
 
-    // --- MAIN LOGIC BLOCK ---
+    // --- LOGIC REVISION ---
 
-    // 1. If a task is waiting for confirmation, handle it here.
+    // 1. If a task is awaiting confirmation, this is the user's answer.
     if (pendingTask) {
-      console.log("User is confirming a pending task:", pendingTask); // DEBUG LOG
       const positiveResponses = ['yes', 'confirm', 'yep', 'ok', 'sounds good', 'correct'];
-      
       if (positiveResponses.includes(currentInput.toLowerCase())) {
         await handleCreateTask(pendingTask);
       } else {
@@ -55,16 +59,15 @@ const ChatInterface = () => {
         setPendingTask(null);
         setIsLoading(false);
       }
-      // CRUCIAL: Stop execution here. Do not proceed to the API call.
-      return; 
+      return; // Stop after handling confirmation.
     }
 
-    // 2. If no task is pending, contact the AI.
+    // 2. If no task is pending, send the conversation to the AI.
     try {
       const response = await fetch('/api/processTask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, newUserMessage] }),
+        body: JSON.stringify({ messages: currentMessages }), // Send the updated message list
       });
 
       if (!response.ok) throw new Error('Network response was not ok');
@@ -72,9 +75,8 @@ const ChatInterface = () => {
       const aiResponse = await response.json();
       setMessages(prev => [...prev, aiResponse]);
       
-      // 3. If the AI's response is a confirmation, set the pending task.
+      // 3. If the AI responds with a confirmation, set it as pending.
       if (aiResponse.type === 'confirmation' && aiResponse.taskData) {
-        console.log("Confirmation received, setting pending task:", aiResponse.taskData); // DEBUG LOG
         setPendingTask(aiResponse.taskData);
       }
 
