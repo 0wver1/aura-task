@@ -25,7 +25,7 @@ export default async function handler(req, res) {
           { role: "system", content: systemPrompt },
           { role: "user", content: userInput }
         ],
-        model: "llama3-8b-8192", // Using the compatible model
+        model: "llama-3.1-8b-instant", // ✅ Updated model name
         temperature: 0.7,
         max_tokens: 1024,
         top_p: 1,
@@ -41,8 +41,16 @@ export default async function handler(req, res) {
     const result = await groqResponse.json();
     let aiText = result.choices[0]?.message?.content;
 
+    // Clean and parse JSON safely
     aiText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
-    const aiResponseObject = JSON.parse(aiText);
+
+    let aiResponseObject;
+    try {
+      aiResponseObject = JSON.parse(aiText);
+    } catch {
+      aiResponseObject = { message: aiText }; // fallback if not JSON
+    }
+
     aiResponseObject.sender = 'ai';
 
     return res.status(200).json(aiResponseObject);
