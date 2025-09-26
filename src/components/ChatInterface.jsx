@@ -10,79 +10,74 @@ const ChatInterface = () => {
   const [pendingTask, setPendingTask] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // Effect to auto-scroll to the latest message
+  // Auto-scroll to the latest message
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Function to create the task in Firestore
+  // Function that adds the task to Firestore
   const handleCreateTask = async (taskData) => {
     setIsLoading(true);
     try {
       await addTask(taskData);
       const successMessage = { sender: 'ai', text: `Great! I've added "${taskData.title}" to your tasks.` };
-      
-      // Update the chat, removing the old confirmation and adding the success message
+      // Update the chat, replacing the confirmation question with the success message
       setMessages(prev => [...prev.filter(m => m.type !== 'confirmation'), successMessage]);
-
     } catch (error) {
-      console.error("Error adding task:", error);
-      setMessages(prev => [...prev, { sender: 'ai', text: 'I had trouble saving that task. Please try again.' }]);
+      console.error("Error in handleCreateTask:", error);
+      setMessages(prev => [...prev, { sender: 'ai', text: 'Sorry, I failed to save that task.' }]);
     } finally {
-      setPendingTask(null); // Reset the pending task state
+      setPendingTask(null);
       setIsLoading(false);
     }
   };
 
-  // Main function to handle sending messages
+  // Main function to handle the entire chat flow
   const handleSendMessage = async (e) => {
     e.preventDefault();
     const currentInput = userInput.trim();
     if (!currentInput || isLoading) return;
 
-    // Add user's message to the chat immediately
-    const newUserMessage = { sender: 'user', text: currentInput };
-    setMessages(prev => [...prev, newUserMessage]);
+    // Add the user's message to the chat immediately
+    const updatedMessages = [...messages, { sender: 'user', text: currentInput }];
+    setMessages(updatedMessages);
     setUserInput('');
     setIsLoading(true);
 
-    // --- REVISED LOGIC ---
+    // --- CRITICAL LOGIC ---
 
-    // 1. Check if a task is awaiting confirmation.
+    // 1. Check if a task is already pending confirmation
     if (pendingTask) {
       const positiveResponses = ['yes', 'confirm', 'yep', 'ok', 'sounds good', 'correct'];
       if (positiveResponses.includes(currentInput.toLowerCase())) {
-        // If user confirms, create the task.
+        // If the user's response is positive, create the task
         await handleCreateTask(pendingTask);
       } else {
-        // If user denies, cancel the task.
-        setMessages(prev => [...prev, { sender: 'ai', text: "Okay, I've cancelled that task creation." }]);
+        // Otherwise, cancel the process
+        setMessages(prev => [...prev, { sender: 'ai', text: "Okay, I've cancelled that task." }]);
         setPendingTask(null);
         setIsLoading(false);
       }
-      return; // IMPORTANT: Stop execution here.
+      return; // Stop here after handling the confirmation
     }
 
-    // 2. If no task is pending, send the conversation to the AI.
+    // 2. If no task is pending, send the conversation to the AI
     try {
       const response = await fetch('/api/processTask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Send the complete message history including the new user message
-        body: JSON.stringify({ messages: [...messages, newUserMessage] }),
+        body: JSON.stringify({ messages: updatedMessages }),
       });
 
       if (!response.ok) throw new Error('Network response was not ok');
 
       const aiResponse = await response.json();
+      setMessages(prev => [...prev, aiResponse]);
       
-      // 3. If the AI responds with a confirmation, set it as pending.
+      // 3. If the AI's response is a confirmation, set the pending task state
       if (aiResponse.type === 'confirmation' && aiResponse.taskData) {
         setPendingTask(aiResponse.taskData);
       }
-      
-      setMessages(prev => [...prev, aiResponse]);
-
     } catch (error) {
       console.error("API Error:", error);
       setMessages(prev => [...prev, { sender: 'ai', text: 'Sorry, I ran into a connection error.' }]);
