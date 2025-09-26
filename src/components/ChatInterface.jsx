@@ -9,7 +9,6 @@ const ChatInterface = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Function to automatically scroll to the latest message
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -21,19 +20,22 @@ const ChatInterface = () => {
     if (!userInput.trim()) return;
 
     const newUserMessage = { sender: 'user', text: userInput };
-    setMessages(prev => [...prev, newUserMessage]);
+    const newMessages = [...messages, newUserMessage];
+    
+    setMessages(newMessages);
     setUserInput('');
     setIsLoading(true);
 
     try {
       // --- THIS IS THE UPDATED SECTION ---
-      // We now use a standard fetch call to our Vercel API endpoint.
+      // We pass the entire message history to the API endpoint.
       const response = await fetch('/api/processTask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: userInput }),
+        // Send the newMessages array directly
+        body: JSON.stringify({ messages: newMessages }),
       });
 
       if (!response.ok) {
@@ -57,7 +59,13 @@ const ChatInterface = () => {
     try {
       await addTask(taskData);
       const confirmationMessage = { sender: 'ai', text: `Great! I've added "${taskData.title}" to your tasks.` };
-      setMessages(prev => [...prev, confirmationMessage]);
+      
+      // Clear the confirmation button after creating the task
+      setMessages(prev => {
+        const updatedMessages = prev.filter(msg => msg.type !== 'confirmation');
+        return [...updatedMessages, confirmationMessage];
+      });
+
     } catch (error) {
         const errorMessage = { sender: 'ai', text: 'I had trouble saving that task. Please check your connection and try again.' };
         setMessages(prev => [...prev, errorMessage]);
@@ -69,14 +77,26 @@ const ChatInterface = () => {
       <div className="messages-list">
         {messages.map((msg, index) => (
           <div key={index} className={`message ${msg.sender}`}>
-            <p>{msg.text}</p>
-            {msg.type === 'confirmation' && msg.taskData && (
-              <button 
-                className="create-task-button"
-                onClick={() => handleCreateTask(msg.taskData)}
-              >
-                Create Task
-              </button>
+            {/* Display task data for confirmation if it exists */}
+            {msg.type === 'confirmation' && msg.taskData ? (
+              <div>
+                <p>Here are the details for your new task:</p>
+                <ul>
+                  <li><strong>Title:</strong> {msg.taskData.title}</li>
+                  <li><strong>Date:</strong> {msg.taskData.date}</li>
+                  <li><strong>Time:</strong> {msg.taskData.time}</li>
+                  {msg.taskData.duration && <li><strong>Duration:</strong> {msg.taskData.duration}</li>}
+                  {msg.taskData.priority && <li><strong>Priority:</strong> High</li>}
+                </ul>
+                <button 
+                  className="create-task-button"
+                  onClick={() => handleCreateTask(msg.taskData)}
+                >
+                  Create Task
+                </button>
+              </div>
+            ) : (
+              <p>{msg.text}</p>
             )}
           </div>
         ))}
