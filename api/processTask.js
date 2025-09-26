@@ -25,7 +25,7 @@ export default async function handler(req, res) {
           { role: "system", content: systemPrompt },
           { role: "user", content: userInput }
         ],
-        model: "gemma-7b-it", // Using the compatible model
+        model: "llama3-8b-8192", // Using the compatible model
         temperature: 0.7,
         max_tokens: 1024,
         top_p: 1,
