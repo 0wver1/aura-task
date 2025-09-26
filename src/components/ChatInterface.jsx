@@ -41,8 +41,6 @@ const ChatInterface = () => {
     setUserInput('');
     setIsLoading(true);
 
-    // --- THIS IS THE UPDATED SECTION ---
-
     // 1. Check if we are waiting for a confirmation
     if (pendingTask) {
       const positiveResponses = ['yes', 'confirm', 'yep', 'ok', 'sounds good', 'correct'];
@@ -80,9 +78,8 @@ const ChatInterface = () => {
       const errorMessage = { sender: 'ai', text: 'Sorry, I ran into an error. Please try again.' };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
-      if (!pendingTask) setIsLoading(false); // Only stop loading if not waiting for confirmation
+      if (!pendingTask) setIsLoading(false);
     }
-    // --- END OF UPDATED SECTION ---
   };
 
   return (
@@ -90,8 +87,8 @@ const ChatInterface = () => {
       <div className="messages-list">
         {messages.map((msg, index) => (
           <div key={index} className={`message ${msg.sender}`}>
+            {/* The text now comes from the 'text' property of the JSON response */}
             <p>{msg.text}</p>
-            {/* We no longer need the button, as confirmation is handled via chat */}
           </div>
         ))}
         {isLoading && <div className="message ai"><p><i>Typing...</i></p></div>}

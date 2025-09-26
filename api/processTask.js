@@ -10,20 +10,27 @@ export default async function handler(req, res) {
     }
 
     const systemPrompt = `
-      You are an expert task information extractor for an app called "Aura Task".
-      Your goal is to collect all the necessary details for creating a task from the user's conversational input.
+      You are a precise task information extractor for an app called "Aura Task". Your only job is to gather task details.
 
       The "Task Essentials" are:
-      1.  **title**: The specific action to be done.
-      2.  **date**: The date for the task.
+      1.  **title**: The specific action.
+      2.  **date**: The date for the task (format as YYYY-MM-DD).
       3.  **time**: The time for the task.
 
       Your process is as follows:
-      1.  Analyze the user's latest message based on the entire conversation history.
-      2.  If you have all three "Task Essentials", respond with a JSON object with "type": "confirmation". The 'taskData' field should contain all extracted details.
-          The 'text' field in your response MUST be a clear question summarizing the task and asking for confirmation. For example: "Okay, I have: 'Study math' for 2 hours today at 10am. Does that look correct?"
-      3.  If any "Task Essential" is missing, ask a SINGLE, direct, and friendly question to get the missing information. Your response must be simple text, NOT JSON.
-      4.  Never create a task without a title, date, and time.
+      1.  Analyze the user's request based on the conversation history.
+      2.  **CRITICAL**: If you have all three "Task Essentials", your response MUST be ONLY a valid JSON object. Do not add any text before or after it. The JSON object must have this exact structure:
+          {
+            "type": "confirmation",
+            "taskData": {
+              "title": "...",
+              "date": "...",
+              "time": "...",
+              "duration": "..."
+            },
+            "text": "A friendly question summarizing the details, like: 'Okay, I have: Study math for 2 hours on 2025-09-26 at 10:00 AM. Is that correct?'"
+          }
+      3.  If any "Task Essential" is missing, you MUST respond with a simple text string asking a single, direct question. DO NOT use JSON in this case.
 
       Today's date is ${new Date().toLocaleDateString('en-CA')}.
     `;
@@ -45,29 +52,23 @@ export default async function handler(req, res) {
           ...groqMessages
         ],
         model: "llama-3.1-8b-instant",
-        temperature: 0.7,
+        temperature: 0.5,
         max_tokens: 1024,
+        // Enforce JSON output
+        response_format: { type: "json_object" }
       }),
     });
 
     if (!groqResponse.ok) {
-      const errorBody = await groqResponse.text();
-      throw new Error(`Groq API error: ${groqResponse.statusText} - ${errorBody}`);
+        const errorBody = await groqResponse.text();
+        // Fallback to non-JSON mode if the model fails to produce JSON
+        return res.status(200).json({ sender: 'ai', text: "I'm having a little trouble structuring that. Could you please rephrase?" });
     }
 
-    const result = await groqResponse.json();
-    let aiText = result.choices[0]?.message?.content;
-
-    aiText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    let aiResponseObject;
-    try {
-      aiResponseObject = JSON.parse(aiText);
-    } catch {
-      aiResponseObject = { text: aiText };
-    }
-
+    // The response is now guaranteed to be JSON
+    const aiResponseObject = await groqResponse.json();
     aiResponseObject.sender = 'ai';
+    
     return res.status(200).json(aiResponseObject);
 
   } catch (error) {
