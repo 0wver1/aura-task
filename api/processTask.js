@@ -25,7 +25,7 @@ export default async function handler(req, res) {
           { role: "system", content: systemPrompt },
           { role: "user", content: userInput }
         ],
-        model: "gemini-flash-latest", // Using the compatible model
+        model: "gemini-2.5-flash", // Using the compatible model
         temperature: 0.7,
         max_tokens: 1024,
         top_p: 1,
