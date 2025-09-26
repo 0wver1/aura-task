@@ -17,75 +17,71 @@ const ChatInterface = () => {
   useEffect(scrollToBottom, [messages]);
 
   const handleCreateTask = async (taskData) => {
-    setIsLoading(true); // Show loading while saving
+    console.log("Creating task with data:", taskData); // DEBUG LOG
+    setIsLoading(true);
     try {
       await addTask(taskData);
-      const confirmationMessage = { sender: 'ai', text: `Great! I've added "${taskData.title}" to your tasks.` };
-      setMessages(prev => {
-        // Remove the old confirmation question and add the final success message
-        const filteredMessages = prev.filter(msg => msg.type !== 'confirmation');
-        return [...filteredMessages, confirmationMessage];
-      });
+      const successMessage = { sender: 'ai', text: `Great! I've added "${taskData.title}" to your tasks.` };
+      setMessages(prev => [...prev.filter(msg => msg.type !== 'confirmation'), successMessage]);
     } catch (error) {
-        const errorMessage = { sender: 'ai', text: 'I had trouble saving that task. Please try again.' };
-        setMessages(prev => [...prev, errorMessage]);
+        setMessages(prev => [...prev, { sender: 'ai', text: 'I had trouble saving that task. Please try again.' }]);
     } finally {
-      setPendingTask(null); // Clear the pending task
-      setIsLoading(false); // Stop loading after saving
+      setPendingTask(null);
+      setIsLoading(false);
     }
   };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!userInput.trim() || isLoading) return;
+    const currentInput = userInput.trim();
+    if (!currentInput || isLoading) return;
 
-    const newUserMessage = { sender: 'user', text: userInput };
-    
+    const newUserMessage = { sender: 'user', text: currentInput };
     setMessages(prev => [...prev, newUserMessage]);
     setUserInput('');
     setIsLoading(true);
 
-    // --- LOGIC CORRECTION ---
+    // --- MAIN LOGIC BLOCK ---
 
-    // 1. Check if we are waiting for a confirmation from the user
+    // 1. If a task is waiting for confirmation, handle it here.
     if (pendingTask) {
+      console.log("User is confirming a pending task:", pendingTask); // DEBUG LOG
       const positiveResponses = ['yes', 'confirm', 'yep', 'ok', 'sounds good', 'correct'];
-      if (positiveResponses.includes(userInput.toLowerCase().trim())) {
-        await handleCreateTask(pendingTask); // Await the creation
+      
+      if (positiveResponses.includes(currentInput.toLowerCase())) {
+        await handleCreateTask(pendingTask);
       } else {
         setMessages(prev => [...prev, { sender: 'ai', text: "Okay, I've cancelled that task." }]);
         setPendingTask(null);
         setIsLoading(false);
       }
-      return; // Stop here after handling the confirmation
+      // CRUCIAL: Stop execution here. Do not proceed to the API call.
+      return; 
     }
 
-    // 2. If not confirming, proceed with the normal API call
+    // 2. If no task is pending, contact the AI.
     try {
       const response = await fetch('/api/processTask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, newUserMessage] }), // Send the most up-to-date messages
+        body: JSON.stringify({ messages: [...messages, newUserMessage] }),
       });
 
       if (!response.ok) throw new Error('Network response was not ok');
 
       const aiResponse = await response.json();
-      
-      // 3. If the AI is asking for confirmation, set the pending task and STOP loading
-      if (aiResponse.type === 'confirmation' && aiResponse.taskData) {
-        setPendingTask(aiResponse.taskData);
-        setIsLoading(false); // **THE FIX**: Stop loading to wait for user input
-      } else {
-         setIsLoading(false); // Stop loading after a normal question
-      }
-      
       setMessages(prev => [...prev, aiResponse]);
+      
+      // 3. If the AI's response is a confirmation, set the pending task.
+      if (aiResponse.type === 'confirmation' && aiResponse.taskData) {
+        console.log("Confirmation received, setting pending task:", aiResponse.taskData); // DEBUG LOG
+        setPendingTask(aiResponse.taskData);
+      }
 
     } catch (error) {
-      console.error("Error calling API endpoint:", error);
-      const errorMessage = { sender: 'ai', text: 'Sorry, I ran into an error. Please try again.' };
-      setMessages(prev => [...prev, errorMessage]);
+      console.error("API Error:", error);
+      setMessages(prev => [...prev, { sender: 'ai', text: 'Sorry, I ran into an error. Please try again.' }]);
+    } finally {
       setIsLoading(false);
     }
   };
