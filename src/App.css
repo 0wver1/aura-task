@@ -184,3 +184,58 @@
   border-radius: 20px;
   cursor: pointer;
 }
+
+/* Styles for Task List */
+.task-view-container {
+  margin-top: 20px;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  background-color: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  margin-bottom: 10px;
+  gap: 15px;
+}
+
+.task-item-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.task-item-details {
+  flex-grow: 1;
+}
+
+.task-item-details h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.task-item-details p {
+  margin: 5px 0 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.task-item.completed h3 {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.task-item-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  font-size: 18px;
+  color: #888;
+}
+
+.task-item-actions button:hover {
+  color: #333;
+}

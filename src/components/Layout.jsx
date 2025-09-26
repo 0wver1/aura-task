@@ -1,11 +1,11 @@
 import React from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase/config';
-import ChatInterface from './ChatInterface'; // Import the new component
+import ChatInterface from './ChatInterface';
+import TaskView from './TaskView'; // 1. Import TaskView
 
 const Layout = () => {
   const handleLogout = async () => {
-    // ... (logout function remains the same)
     try {
       await signOut(auth);
     } catch (error) {
@@ -22,8 +22,9 @@ const Layout = () => {
         </button>
       </header>
       <main className="app-main-content">
-        {/* Replace the placeholder with our component */}
         <ChatInterface />
+        <hr style={{ margin: '30px 0' }} />
+        <TaskView /> {/* 2. Add the TaskView component here */}
       </main>
     </div>
   );
