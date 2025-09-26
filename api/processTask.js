@@ -10,34 +10,31 @@ export default async function handler(req, res) {
     }
 
     const systemPrompt = `
-      You are a precise task information extractor for an app called "Aura Task". Your only job is to gather task details.
+      You are a task information extractor. You have two possible response types: asking a question or confirming a task.
 
-      The "Task Essentials" are:
-      1.  **title**: The specific action.
-      2.  **date**: The date for the task (format as YYYY-MM-DD).
-      3.  **time**: The time for the task.
-
-      Your process is as follows:
-      1.  Analyze the user's request based on the conversation history.
-      2.  **CRITICAL**: If you have all three "Task Essentials", your response MUST be ONLY a valid JSON object. Do not add any text before or after it. The JSON object must have this exact structure:
+      1.  **If you have all the necessary information** (title, date, and time), you MUST respond ONLY with a JSON object. Your entire response must be a single JSON code block and nothing else.
+          The structure MUST be:
+          \`\`\`json
           {
             "type": "confirmation",
             "taskData": {
               "title": "...",
-              "date": "...",
+              "date": "YYYY-MM-DD",
               "time": "...",
               "duration": "..."
             },
-            "text": "A friendly question summarizing the details, like: 'Okay, I have: Study math for 2 hours on 2025-09-26 at 10:00 AM. Is that correct?'"
+            "text": "A friendly question summarizing the details. e.g., 'Got it. Just to confirm: Study math on 2025-09-27 at 10:00 AM for 2 hours. Is that correct?'"
           }
-      3.  If any "Task Essential" is missing, you MUST respond with a simple text string asking a single, direct question. DO NOT use JSON in this case.
+          \`\`\`
 
-      Today's date is ${new Date().toLocaleDateString('en-CA')}.
+      2.  **If any information is missing**, you MUST respond ONLY with a short, simple question as a plain text string. Do not use JSON. For example: "What time would you like to schedule that?"
+
+      Today's date is ${new Date().toLocaleDateString('en-CA')}. Analyze the conversation and provide one of these two response types.
     `;
 
     const groqMessages = messages.map(msg => ({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
+      role: msg.sender === 'user' ? 'user' : 'assistant',
+      content: msg.text
     }));
 
     const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -54,21 +51,35 @@ export default async function handler(req, res) {
         model: "llama-3.1-8b-instant",
         temperature: 0.5,
         max_tokens: 1024,
-        // Enforce JSON output
-        response_format: { type: "json_object" }
       }),
     });
 
     if (!groqResponse.ok) {
-        const errorBody = await groqResponse.text();
-        // Fallback to non-JSON mode if the model fails to produce JSON
-        return res.status(200).json({ sender: 'ai', text: "I'm having a little trouble structuring that. Could you please rephrase?" });
+      const errorBody = await groqResponse.text();
+      throw new Error(`Groq API error: ${groqResponse.statusText} - ${errorBody}`);
     }
 
-    // The response is now guaranteed to be JSON
-    const aiResponseObject = await groqResponse.json();
-    aiResponseObject.sender = 'ai';
+    const result = await groqResponse.json();
+    let aiText = result.choices[0]?.message?.content;
+
+    // Clean the response to extract the JSON if it exists
+    const jsonMatch = aiText.match(/```json([\s\S]*?)```/);
     
+    let aiResponseObject;
+    if (jsonMatch && jsonMatch[1]) {
+      // If we found a JSON block, parse it
+      try {
+        aiResponseObject = JSON.parse(jsonMatch[1]);
+      } catch {
+        // Fallback for malformed JSON
+        aiResponseObject = { sender: 'ai', text: "I seem to have made a formatting error. Could you try again?" };
+      }
+    } else {
+      // Otherwise, treat it as a plain text question
+      aiResponseObject = { text: aiText };
+    }
+
+    aiResponseObject.sender = 'ai';
     return res.status(200).json(aiResponseObject);
 
   } catch (error) {
